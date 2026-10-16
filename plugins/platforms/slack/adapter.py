@@ -4228,6 +4228,15 @@ class SlackAdapter(BasePlatformAdapter):
             return None
         edited = updated_message.get("edited")
         edited_ts = str(edited.get("ts") or "") if isinstance(edited, dict) else ""
+        # Only a real edit can carry new input. Slack also sends message_changed for the parent when a
+        # thread reply is added or deleted (reply_count/latest_reply) and for link unfurls; those have no
+        # edited.ts and the same text. The guard above is in memory, so after a restart such an event
+        # would replay an old, already-answered message as a fresh turn.
+        if not edited_ts:
+            return None
+        previous = event.get("previous_message")
+        if isinstance(previous, dict) and previous.get("text") == updated_message.get("text"):
+            return None
         outer_event_ts = str(event.get("ts") or "")
         changed_event_ts = (
             str(event.get("event_ts") or edited_ts or "")
